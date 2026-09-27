@@ -215,6 +215,7 @@
     <h2 id="sheetTitle" class="font-bold text-[15px] mb-4">إضافة حركة جديدة</h2>
     <form id="entryForm" onsubmit="addEntry(event)" class="space-y-3">
       <input type="hidden" id="entryId" value="">
+      <input type="hidden" id="entryIndex" value="">
       <div class="grid grid-cols-2 gap-3">
         <button type="button" id="typeExpBtn" onclick="setType('expense')" class="rounded-xl py-2.5 text-[13px] font-bold" style="background:var(--soil);color:#fff">مصروف</button>
         <button type="button" id="typeRevBtn" onclick="setType('revenue')" class="rounded-xl py-2.5 text-[13px] font-bold" style="background:var(--chip);color:var(--ink)">مبيعات</button>
@@ -371,6 +372,7 @@ function closeAddSheet(){
 function openNewEntrySheet(){
   document.getElementById('entryForm').reset();
   document.getElementById('entryId').value='';
+  document.getElementById('entryIndex').value='';
   document.getElementById('entryDate').valueAsDate = new Date();
   setType('expense');
   document.getElementById('sheetTitle').innerText = 'إضافة حركة جديدة';
@@ -378,11 +380,12 @@ function openNewEntrySheet(){
   document.getElementById('deleteBtn').classList.add('hidden');
   openAddSheet();
 }
-function openEditSheet(id){
-  const it = entries.find(e=>String(e.id)===String(id));
+function openEditSheet(idx){
+  const it = entries[idx];
   if(!it) return;
   const isRev = it.type==='revenue'||it.type==='مبيعات (قبض)';
   setType(isRev?'revenue':'expense');
+  document.getElementById('entryIndex').value = idx;
   document.getElementById('entryId').value = it.id || '';
   document.getElementById('entryCategory').value = it.category;
   document.getElementById('entryAmount').value = it.amount;
@@ -393,7 +396,7 @@ function openEditSheet(id){
   document.getElementById('entryUnitPrice').value = it.unitPrice || '';
   document.getElementById('sheetTitle').innerText = 'تعديل الحركة';
   document.getElementById('submitBtn').innerText = 'حفظ التعديلات';
-  document.getElementById('deleteBtn').classList.toggle('hidden', !it.id);
+  document.getElementById('deleteBtn').classList.remove('hidden');
   openAddSheet();
 }
 function setType(t){
@@ -529,7 +532,7 @@ function renderAll(){
   const search = (document.getElementById('searchBox').value||'').trim().toLowerCase();
   const fType = document.getElementById('filterType').value;
   const fHouse = document.getElementById('filterHouse').value;
-  let filtered = [...entries].reverse().filter(it=>{
+  let filtered = entries.map((it,idx)=>Object.assign({},it,{_idx:idx})).reverse().filter(it=>{
     const isRev = it.type==='revenue'||it.type==='مبيعات (قبض)';
     if(fType==='expense' && isRev) return false;
     if(fType==='revenue' && !isRev) return false;
@@ -546,8 +549,7 @@ function renderAll(){
     list.innerHTML = visible.map(it=>{
       const isRev = it.type==='revenue'||it.type==='مبيعات (قبض)';
       const val = Number(it.amount)||0;
-      const clickable = it.id ? `onclick="openEditSheet('${it.id}')"` : '';
-      return `<div ${clickable} class="rounded-2xl p-3.5 flex items-center justify-between ${it.id?'cursor-pointer active:opacity-70':''}" style="background:var(--surface);border:1px solid var(--line)">
+      return `<div onclick="openEditSheet(${it._idx})" class="rounded-2xl p-3.5 flex items-center justify-between cursor-pointer active:opacity-70" style="background:var(--surface);border:1px solid var(--line)">
         <div class="flex items-center gap-3">
           <div class="w-2 h-9 rounded-full" style="background:${isRev?'var(--leaf)':'var(--soil)'}"></div>
           <div>
@@ -623,8 +625,9 @@ function saveWebAppUrl(){
 }
 function addEntry(ev){
   ev.preventDefault();
+  const idxStr = document.getElementById('entryIndex').value;
   const id = document.getElementById('entryId').value;
-  const isEdit = !!id;
+  const isEdit = idxStr !== '';
   const btn = document.getElementById('submitBtn');
   btn.disabled = true; btn.innerText = isEdit ? 'جارٍ حفظ التعديلات…' : 'جارٍ الحفظ والتصدير…';
   const entry = {
@@ -638,13 +641,22 @@ function addEntry(ev){
     unitPrice: document.getElementById('entryUnitPrice').value || ''
   };
   if(isEdit){
-    const idx = entries.findIndex(e=>String(e.id)===String(id));
-    if(idx>-1) entries[idx] = Object.assign({}, entries[idx], entry);
+    const idx = parseInt(idxStr, 10);
+    if(entries[idx]) entries[idx] = Object.assign({}, entries[idx], entry);
   } else {
     entries.push(entry);
   }
   localStorage.setItem('greenhouse_entries_sync', JSON.stringify(entries));
   renderAll();
+
+  // إذا كانت حركة قديمة معدَّلة ولا تملك معرّفاً سحابياً بعد، يُحفظ التعديل على هذا الجهاز فقط
+  if(isEdit && !id){
+    btn.disabled = false;
+    closeAddSheet();
+    alertCustom('تم حفظ التعديل على هذا الجهاز فقط. هذه الحركة قديمة ولا تدعم بعد التعديل على السحابة — حدّث كود Google Apps Script (كما أُرسل لك سابقاً) ثم اضغط "تحديث" لتفعيل ذلك على كل الحركات القديمة.');
+    return;
+  }
+
   logMessage(isEdit ? 'جارٍ تحديث الحركة في السحابة…' : 'حفظ محلي، جارٍ التصدير للسحابة…');
   const qp = new URLSearchParams(Object.assign({ action: isEdit?'edit':'add' }, entry, { id: id||'', callback:'handleExportResponse', t:Date.now() }));
   window.handleExportResponse = function(res){ logMessage('استجابة السحابة: '+JSON.stringify(res)); };
@@ -665,9 +677,21 @@ function addEntry(ev){
   document.body.appendChild(s);
 }
 function deleteEntry(){
+  const idxStr = document.getElementById('entryIndex').value;
   const id = document.getElementById('entryId').value;
-  if(!id){ alertCustom('هذه الحركة قديمة ولا تملك معرّفاً بعد؛ حدّث كود Google Apps Script أولاً'); return; }
+  if(idxStr==='') return;
   if(!confirm('هل تريد حذف هذه الحركة نهائياً؟')) return;
+  const idx = parseInt(idxStr, 10);
+
+  if(!id){
+    entries.splice(idx, 1);
+    localStorage.setItem('greenhouse_entries_sync', JSON.stringify(entries));
+    renderAll();
+    closeAddSheet();
+    alertCustom('تم الحذف من هذا الجهاز فقط. هذه الحركة قديمة ولا تدعم الحذف من السحابة بعد — حدّث كود Google Apps Script ثم اضغط "تحديث"، وبعدها ستتمكن من حذفها نهائياً.');
+    return;
+  }
+
   const btn = document.getElementById('deleteBtn');
   btn.disabled = true; btn.innerText = 'جارٍ الحذف…';
   const qp = new URLSearchParams({ action:'delete', id, callback:'handleDeleteResponse', t:Date.now() });
@@ -676,7 +700,7 @@ function deleteEntry(){
   const s = document.createElement('script');
   s.id='deleteScript'; s.src = `${WEB_APP_URL}?${qp.toString()}`;
   s.onload = function(){
-    entries = entries.filter(e=>String(e.id)!==String(id));
+    entries.splice(idx, 1);
     localStorage.setItem('greenhouse_entries_sync', JSON.stringify(entries));
     renderAll();
     alertCustom('تم حذف الحركة');

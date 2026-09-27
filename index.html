@@ -156,9 +156,20 @@
 
   <!-- HOUSES -->
   <section id="tab-houses" class="tabpane space-y-3">
-    <div class="flex gap-2">
-      <input id="newHouseName" placeholder="اسم بيت جديد، مثال: البيت الثالث" class="flex-grow rounded-xl px-3 py-2 text-[13px] outline-none" style="background:var(--surface);border:1px solid var(--line)">
-      <button onclick="addHouse()" class="px-4 rounded-xl text-[13px] font-semibold" style="background:var(--brand);color:#fff">إضافة</button>
+    <p class="text-[11px] px-1" style="color:var(--muted)">عدد البيوت غير محدود؛ أضف بيتاً واحداً بالاسم، أو ولّد عدداً منها دفعة واحدة إذا كانت كثيرة ثم أعد تسمية كل بيت لاحقاً.</p>
+    <div class="rounded-2xl p-3 space-y-2" style="background:var(--surface);border:1px solid var(--line)">
+      <label class="block text-[11px] font-semibold" style="color:var(--muted)">إضافة بيت واحد</label>
+      <div class="flex gap-2">
+        <input id="newHouseName" placeholder="اسم البيت، مثال: البيت الثالث" class="flex-grow rounded-xl px-3 py-2 text-[13px] outline-none" style="background:var(--chip);border:1px solid var(--line)">
+        <button onclick="addHouse()" class="px-4 rounded-xl text-[13px] font-semibold whitespace-nowrap" style="background:var(--brand);color:#fff">إضافة</button>
+      </div>
+    </div>
+    <div class="rounded-2xl p-3 space-y-2" style="background:var(--surface);border:1px solid var(--line)">
+      <label class="block text-[11px] font-semibold" style="color:var(--muted)">توليد عدد كبير من البيوت دفعة واحدة</label>
+      <div class="flex gap-2">
+        <input type="number" min="1" id="bulkHouseCount" placeholder="مثال: 25" class="flex-grow rounded-xl px-3 py-2 text-[13px] outline-none" style="background:var(--chip);border:1px solid var(--line)">
+        <button onclick="generateHouses()" class="px-4 rounded-xl text-[13px] font-semibold whitespace-nowrap" style="background:var(--brand);color:#fff">توليد</button>
+      </div>
     </div>
     <div id="housesList" class="space-y-2"></div>
   </section>
@@ -421,6 +432,35 @@ function removeHouse(name){
   localStorage.setItem('greenhouse_houses', JSON.stringify(houses));
   fillHouseSelects(); renderHouses();
 }
+function generateHouses(){
+  const n = parseInt(document.getElementById('bulkHouseCount').value);
+  if(!n || n<1){ alertCustom('أدخل عدداً صحيحاً أكبر من صفر'); return; }
+  let added = 0, i = 1;
+  while(added < n && i < n*20){
+    const name = 'بيت ' + i;
+    if(!houses.includes(name)){ houses.push(name); added++; }
+    i++;
+  }
+  localStorage.setItem('greenhouse_houses', JSON.stringify(houses));
+  document.getElementById('bulkHouseCount').value='';
+  fillHouseSelects(); renderHouses();
+  alertCustom('تم توليد '+added+' بيت جديد، يمكنك إعادة تسمية كل واحد منها بالضغط على أيقونة القلم');
+}
+function renameHouse(oldName){
+  const newName = prompt('أدخل الاسم الجديد لهذا البيت:', oldName);
+  if(!newName) return;
+  const clean = newName.trim();
+  if(!clean || clean===oldName) return;
+  if(houses.includes(clean)){ alertCustom('هذا الاسم مستخدم لبيت آخر بالفعل'); return; }
+  const affected = entries.filter(e=>e.house===oldName).length;
+  houses = houses.map(h=>h===oldName?clean:h);
+  entries.forEach(e=>{ if(e.house===oldName) e.house=clean; });
+  localStorage.setItem('greenhouse_houses', JSON.stringify(houses));
+  localStorage.setItem('greenhouse_entries_sync', JSON.stringify(entries));
+  fillHouseSelects(); renderHouses(); renderAll();
+  if(affected>0) alertCustom('تم تغيير الاسم على هذا الجهاز، لكن '+affected+' حركة سابقة لا تزال مسجّلة بالاسم القديم على السحابة وتحتاج تعديلاً يدوياً لكل منها');
+  else alertCustom('تم تغيير اسم البيت بنجاح');
+}
 function entryHouseMatches(e,h){
   if(e.house) return e.house===h;
   return e.note && e.note.includes(h);
@@ -442,9 +482,14 @@ function renderHouses(){
     return `<div class="rounded-2xl p-4" style="background:var(--surface);border:1px solid var(--line)">
       <div class="flex items-center justify-between">
         <p class="font-bold text-[13px]">${h}</p>
-        <button onclick="removeHouse('${h}')" class="w-8 h-8 flex items-center justify-center rounded-lg" style="background:var(--chip)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--soil)" stroke-width="2"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0 1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13"/></svg>
-        </button>
+        <div class="flex gap-1.5">
+          <button onclick="renameHouse('${h}')" class="w-8 h-8 flex items-center justify-center rounded-lg" style="background:var(--chip)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--brand2)" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+          <button onclick="removeHouse('${h}')" class="w-8 h-8 flex items-center justify-center rounded-lg" style="background:var(--chip)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--soil)" stroke-width="2"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0 1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13"/></svg>
+          </button>
+        </div>
       </div>
       <p class="text-[11px] mt-1" style="color:var(--muted)">صافي: <b style="color:${net>=0?'var(--leaf)':'var(--soil)'}">${fmt(net)} ل.س</b> ($${usd(net,rate)})</p>
       ${costPerKg!==null ? `<p class="text-[11px] mt-0.5" style="color:var(--muted)">الكمية المُنتَجة: ${fmt(qty)} كغ · تكلفة الكيلو التقريبية: ${fmt(costPerKg)} ل.س</p>` : ''}

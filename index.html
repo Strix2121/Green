@@ -13,7 +13,6 @@
     --brand:#1F3D2E; --brand2:#2E5A41; --leaf:#5C8A34; --leaf-bg:#E7F0DA;
     --soil:#B0501C; --soil-bg:#F6E6D8; --chip:#EDE6D2;
   }
-  :root:not([data-theme="light"]) { }
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
       --bg:#14170F; --surface:#1D2117; --ink:#EDE9D8; --muted:#9C9680; --line:#33372A;
@@ -30,18 +29,46 @@
   *{box-sizing:border-box;}
   body{font-family:'Cairo',sans-serif; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);}
   .disp{font-family:'Markazi Text',serif;}
-  .nav-fixed{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 0px);}
   ::-webkit-scrollbar{height:6px;width:6px;}
   ::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px;}
   .sheet{transition:transform .28s cubic-bezier(.32,.72,0,1);}
   .tabpane{display:none;} .tabpane.active{display:block;}
   .navbtn.active{color:var(--brand2);}
-  .navbtn.active .navdot{opacity:1;}
   input,select{color:var(--ink);}
   input::placeholder{color:var(--muted);}
+  .shake{animation:shake .3s;}
+  @keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
 </style>
 </head>
 <body class="min-h-screen flex flex-col" style="background:var(--bg)">
+
+<!-- LOCK SCREEN -->
+<div id="lockScreen" class="fixed inset-0 z-[60] flex items-center justify-center p-6" style="background:var(--bg)">
+  <div class="w-full max-w-xs">
+    <div class="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5" style="background:var(--brand)">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#DDEFC9" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+    </div>
+
+    <div id="lockSetupView" class="hidden text-center space-y-3">
+      <h2 class="font-bold text-[15px]">إنشاء رمز دخول للتطبيق</h2>
+      <p class="text-[12px]" style="color:var(--muted)">هذا الرمز يحمي التطبيق من الدخول العارض على هذا الجهاز فقط، ولا يشفّر البيانات نفسها.</p>
+      <input type="password" inputmode="numeric" maxlength="6" id="newPin" placeholder="رمز جديد (4 أرقام على الأقل)" class="w-full text-center rounded-xl px-3 py-3 text-[16px] tracking-widest outline-none" style="background:var(--chip);border:1px solid var(--line)">
+      <input type="password" inputmode="numeric" maxlength="6" id="confirmPin" placeholder="تأكيد الرمز" class="w-full text-center rounded-xl px-3 py-3 text-[16px] tracking-widest outline-none" style="background:var(--chip);border:1px solid var(--line)">
+      <button onclick="setupPin()" class="w-full rounded-xl py-3 text-[13px] font-bold" style="background:var(--brand);color:#fff">حفظ الرمز والمتابعة</button>
+      <button onclick="skipPin()" class="w-full text-[11px]" style="color:var(--muted)">المتابعة بدون رمز دخول</button>
+    </div>
+
+    <div id="lockEnterView" class="hidden text-center space-y-3">
+      <h2 class="font-bold text-[15px]">أدخل رمز الدخول</h2>
+      <input type="password" inputmode="numeric" maxlength="6" id="enterPin" placeholder="رمز الدخول" class="w-full text-center rounded-xl px-3 py-3 text-[16px] tracking-widest outline-none" style="background:var(--chip);border:1px solid var(--line)">
+      <p id="lockError" class="hidden text-[11px]" style="color:var(--soil)">الرمز غير صحيح، حاول مرة أخرى.</p>
+      <button onclick="checkPin()" class="w-full rounded-xl py-3 text-[13px] font-bold" style="background:var(--brand);color:#fff">دخول</button>
+      <button onclick="forgotPin()" class="w-full text-[11px]" style="color:var(--muted)">نسيت الرمز؟</button>
+    </div>
+  </div>
+</div>
+
+<div id="appRoot">
 
 <header class="sticky top-0 z-30 px-4 pt-3 pb-3" style="background:var(--brand);padding-top:calc(env(safe-area-inset-top,0px) + 12px)">
   <div class="max-w-lg mx-auto flex items-center justify-between">
@@ -54,9 +81,14 @@
         <p id="syncStatus" class="text-[11px] leading-tight" style="color:#BFE0C7">جارٍ الاتصال بالسحابة…</p>
       </div>
     </div>
-    <button onclick="toggleTheme()" id="themeBtn" class="w-9 h-9 rounded-xl flex items-center justify-center" style="background:var(--brand2)">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#DDEFC9" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg>
-    </button>
+    <div class="flex items-center gap-2">
+      <button onclick="lockNow()" class="w-9 h-9 rounded-xl flex items-center justify-center" style="background:var(--brand2)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DDEFC9" stroke-width="1.8"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+      </button>
+      <button onclick="toggleTheme()" class="w-9 h-9 rounded-xl flex items-center justify-center" style="background:var(--brand2)">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#DDEFC9" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg>
+      </button>
+    </div>
   </div>
 </header>
 
@@ -70,7 +102,7 @@
       <p id="netProfitUSD" class="text-[12px] mt-1" style="color:var(--muted)">$0.00</p>
       <div class="flex items-center gap-2 mt-4 text-[11px]" style="color:var(--muted)">
         <span>سعر صرف الدولار:</span>
-        <input type="number" id="exchangeRateInput" onchange="renderAll()" value="15000" class="w-24 rounded-lg px-2 py-1 text-center font-bold outline-none" style="background:var(--chip);border:1px solid var(--line)">
+        <input type="number" id="exchangeRateInput" onchange="saveRate();renderAll()" value="15000" class="w-24 rounded-lg px-2 py-1 text-center font-bold outline-none" style="background:var(--chip);border:1px solid var(--line)">
         <span>ل.س</span>
       </div>
     </div>
@@ -88,6 +120,8 @@
       </div>
     </div>
 
+    <div id="yieldStatsBox"></div>
+
     <div class="rounded-2xl p-4" style="background:var(--surface);border:1px solid var(--line)">
       <h3 class="font-bold text-[13px] mb-3">الإيرادات مقابل المصاريف</h3>
       <div class="relative h-52"><canvas id="barChart"></canvas></div>
@@ -101,27 +135,29 @@
   <!-- TRANSACTIONS -->
   <section id="tab-list" class="tabpane space-y-3">
     <div class="rounded-2xl p-3 space-y-2" style="background:var(--surface);border:1px solid var(--line)">
-      <input id="searchBox" oninput="renderAll()" placeholder="ابحث بالبند أو الملاحظة…" class="w-full rounded-xl px-3 py-2 text-[13px] outline-none" style="background:var(--chip);border:1px solid var(--line)">
+      <input id="searchBox" oninput="onFiltersChanged()" placeholder="ابحث بالبند أو الملاحظة…" class="w-full rounded-xl px-3 py-2 text-[13px] outline-none" style="background:var(--chip);border:1px solid var(--line)">
       <div class="grid grid-cols-3 gap-2">
-        <select id="filterType" onchange="renderAll()" class="rounded-xl px-2 py-2 text-[12px] outline-none" style="background:var(--chip);border:1px solid var(--line)">
+        <select id="filterType" onchange="onFiltersChanged()" class="rounded-xl px-2 py-2 text-[12px] outline-none" style="background:var(--chip);border:1px solid var(--line)">
           <option value="">كل الأنواع</option>
           <option value="expense">مصاريف</option>
           <option value="revenue">مبيعات</option>
         </select>
-        <select id="filterHouse" onchange="renderAll()" class="rounded-xl px-2 py-2 text-[12px] outline-none" style="background:var(--chip);border:1px solid var(--line)">
+        <select id="filterHouse" onchange="onFiltersChanged()" class="rounded-xl px-2 py-2 text-[12px] outline-none" style="background:var(--chip);border:1px solid var(--line)">
           <option value="">كل البيوت</option>
         </select>
         <button onclick="exportToCSV()" class="rounded-xl px-2 py-2 text-[12px] font-semibold" style="background:var(--brand);color:#fff">تصدير CSV</button>
       </div>
     </div>
+    <p class="text-[11px] px-1" style="color:var(--muted)">اضغط على أي حركة لتعديلها أو حذفها.</p>
     <p id="entryCount" class="text-[11px] px-1" style="color:var(--muted)">0 حركة</p>
     <div id="entriesList" class="space-y-2"></div>
+    <button id="loadMoreBtn" onclick="loadMore()" class="hidden w-full rounded-xl py-2.5 text-[12px] font-semibold" style="background:var(--chip);border:1px solid var(--line)">عرض المزيد من الحركات</button>
   </section>
 
   <!-- HOUSES -->
   <section id="tab-houses" class="tabpane space-y-3">
     <div class="flex gap-2">
-      <input id="newHouseName" placeholder="اسم بيت جديد، مثال: البيت 3" class="flex-grow rounded-xl px-3 py-2 text-[13px] outline-none" style="background:var(--surface);border:1px solid var(--line)">
+      <input id="newHouseName" placeholder="اسم بيت جديد، مثال: البيت الثالث" class="flex-grow rounded-xl px-3 py-2 text-[13px] outline-none" style="background:var(--surface);border:1px solid var(--line)">
       <button onclick="addHouse()" class="px-4 rounded-xl text-[13px] font-semibold" style="background:var(--brand);color:#fff">إضافة</button>
     </div>
     <div id="housesList" class="space-y-2"></div>
@@ -134,11 +170,19 @@
       <input type="text" id="webAppUrlInput" class="w-full rounded-xl px-3 py-2 text-[11px] font-mono outline-none" style="background:var(--chip);border:1px solid var(--line)" placeholder="https://script.google.com/macros/s/.../exec">
       <div class="flex gap-2 pt-1">
         <button onclick="saveWebAppUrl()" class="flex-grow rounded-xl py-2 text-[12px] font-semibold" style="background:var(--brand);color:#fff">حفظ وفحص الاتصال</button>
-        <button onclick="loadDataFromSheet()" class="px-4 rounded-xl text-[12px] font-semibold" style="background:var(--chip);border:1px solid var(--line)">
-          <span id="syncIconTxt">تحديث</span>
-        </button>
+        <button onclick="loadDataFromSheet()" class="px-4 rounded-xl text-[12px] font-semibold" style="background:var(--chip);border:1px solid var(--line)">تحديث</button>
       </div>
     </div>
+
+    <div class="rounded-2xl p-4 space-y-2" style="background:var(--surface);border:1px solid var(--line)">
+      <label class="text-[12px] font-semibold" style="color:var(--muted)">رمز الدخول إلى التطبيق</label>
+      <div class="flex gap-2">
+        <input type="password" inputmode="numeric" maxlength="6" id="settingsNewPin" placeholder="رمز جديد" class="w-full rounded-xl px-3 py-2 text-[13px] text-center tracking-widest outline-none" style="background:var(--chip);border:1px solid var(--line)">
+        <button onclick="changePin()" class="px-4 rounded-xl text-[12px] font-semibold whitespace-nowrap" style="background:var(--brand);color:#fff">حفظ الرمز</button>
+      </div>
+      <button onclick="disablePin()" class="text-[11px]" style="color:var(--soil)">إلغاء رمز الدخول نهائياً</button>
+    </div>
+
     <div class="rounded-2xl p-4" style="background:var(--surface);border:1px solid var(--line)">
       <button onclick="toggleDebugPanel()" class="w-full flex items-center justify-between text-[12px] font-semibold">
         <span>سجل الاتصال والمزامنة</span>
@@ -148,17 +192,18 @@
         <div>[النظام] جاهز.</div>
       </div>
     </div>
-    <p class="text-[11px] px-1" style="color:var(--muted)">تُحفظ الحركات محلياً على هذا الجهاز أيضاً كنسخة احتياطية، وتتم مزامنتها مع الشيت عند توفر اتصال.</p>
+    <p class="text-[11px] px-1" style="color:var(--muted)">تُحفظ الحركات محلياً على هذا الجهاز أيضاً كنسخة احتياطية، وتتم مزامنتها مع الجدول عند توفر الاتصال بالإنترنت.</p>
   </section>
 </main>
 
-<!-- Add entry sheet -->
+<!-- Add / edit entry sheet -->
 <div id="addSheet" class="fixed inset-0 z-40 hidden">
   <div class="absolute inset-0 bg-black/40" onclick="closeAddSheet()"></div>
-  <div class="sheet absolute bottom-0 left-0 right-0 rounded-t-3xl p-5 translate-y-full" id="sheetInner" style="background:var(--surface);padding-bottom:calc(env(safe-area-inset-bottom,0px) + 20px)">
+  <div class="sheet absolute bottom-0 left-0 right-0 rounded-t-3xl p-5 translate-y-full max-h-[88vh] overflow-y-auto" id="sheetInner" style="background:var(--surface);padding-bottom:calc(env(safe-area-inset-bottom,0px) + 20px)">
     <div class="w-10 h-1.5 rounded-full mx-auto mb-4" style="background:var(--line)"></div>
-    <h2 class="font-bold text-[15px] mb-4">إضافة حركة جديدة</h2>
+    <h2 id="sheetTitle" class="font-bold text-[15px] mb-4">إضافة حركة جديدة</h2>
     <form id="entryForm" onsubmit="addEntry(event)" class="space-y-3">
+      <input type="hidden" id="entryId" value="">
       <div class="grid grid-cols-2 gap-3">
         <button type="button" id="typeExpBtn" onclick="setType('expense')" class="rounded-xl py-2.5 text-[13px] font-bold" style="background:var(--soil);color:#fff">مصروف</button>
         <button type="button" id="typeRevBtn" onclick="setType('revenue')" class="rounded-xl py-2.5 text-[13px] font-bold" style="background:var(--chip);color:var(--ink)">مبيعات</button>
@@ -168,6 +213,18 @@
         <label class="block text-[11px] font-semibold mb-1" style="color:var(--muted)">التصنيف</label>
         <select id="entryCategory" class="w-full rounded-xl px-3 py-2.5 text-[13px] outline-none" style="background:var(--chip);border:1px solid var(--line)"></select>
       </div>
+
+      <div id="yieldFields" class="hidden grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-[11px] font-semibold mb-1" style="color:var(--muted)">الكمية (كغ، اختياري)</label>
+          <input type="number" step="0.1" id="entryQuantity" oninput="recalcAmount()" placeholder="0" class="w-full rounded-xl px-3 py-2.5 text-[13px] outline-none" style="background:var(--chip);border:1px solid var(--line)">
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold mb-1" style="color:var(--muted)">سعر الكيلو (ل.س)</label>
+          <input type="number" step="1" id="entryUnitPrice" oninput="recalcAmount()" placeholder="0" class="w-full rounded-xl px-3 py-2.5 text-[13px] outline-none" style="background:var(--chip);border:1px solid var(--line)">
+        </div>
+      </div>
+
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="block text-[11px] font-semibold mb-1" style="color:var(--muted)">المبلغ (ل.س)</label>
@@ -179,16 +236,21 @@
         </div>
       </div>
       <div>
-        <label class="block text-[11px] font-semibold mb-1" style="color:var(--muted)">ملاحظة (اختياري، اكتبي أي شي بدك)</label>
-        <input type="text" id="entryNote" placeholder="مثال: بيت 1، أو أي تفصيل حابة تسجّليه" class="w-full rounded-xl px-3 py-2.5 text-[13px] outline-none" style="background:var(--chip);border:1px solid var(--line)">
+        <label class="block text-[11px] font-semibold mb-1" style="color:var(--muted)">البيت المرتبط (اختياري)</label>
+        <select id="entryHouse" class="w-full rounded-xl px-3 py-2.5 text-[13px] outline-none" style="background:var(--chip);border:1px solid var(--line)"><option value="">بدون تحديد</option></select>
+      </div>
+      <div>
+        <label class="block text-[11px] font-semibold mb-1" style="color:var(--muted)">ملاحظة (اختياري)</label>
+        <input type="text" id="entryNote" placeholder="أي تفاصيل إضافية تريد تسجيلها" class="w-full rounded-xl px-3 py-2.5 text-[13px] outline-none" style="background:var(--chip);border:1px solid var(--line)">
       </div>
       <button type="submit" id="submitBtn" class="w-full rounded-xl py-3 text-[13px] font-bold mt-1" style="background:var(--brand);color:#fff">حفظ وتصدير للسحابة</button>
+      <button type="button" id="deleteBtn" onclick="deleteEntry()" class="hidden w-full rounded-xl py-2.5 text-[12px] font-bold" style="background:var(--soil-bg);color:var(--soil)">حذف الحركة نهائياً</button>
     </form>
   </div>
 </div>
 
 <!-- Bottom nav -->
-<nav class="nav-fixed fixed bottom-0 left-0 right-0 z-30" style="background:var(--surface);border-top:1px solid var(--line)">
+<nav class="fixed bottom-0 left-0 right-0 z-30" style="background:var(--surface);border-top:1px solid var(--line)">
   <div class="max-w-lg mx-auto grid grid-cols-5 items-center px-2 py-1.5 relative">
     <button class="navbtn active flex flex-col items-center gap-0.5 py-1.5" style="color:var(--muted)" data-tab="dash" onclick="showTab('dash')">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9h14v-9"/></svg>
@@ -199,7 +261,7 @@
       <span class="text-[10px] font-semibold">الحركات</span>
     </button>
     <div class="flex items-center justify-center">
-      <button onclick="openAddSheet()" class="w-12 h-12 rounded-2xl -mt-6 flex items-center justify-center shadow-lg" style="background:var(--brand)">
+      <button onclick="openNewEntrySheet()" class="w-12 h-12 rounded-2xl -mt-6 flex items-center justify-center shadow-lg" style="background:var(--brand)">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
       </button>
     </div>
@@ -214,17 +276,64 @@
   </div>
 </nav>
 
+</div><!-- /appRoot -->
+
 <script>
 let WEB_APP_URL = localStorage.getItem('greenhouse_webapp_url') || "https://script.google.com/macros/s/AKfycbwwzcijDPyyL-uPFPvNoBFOX6y3-BpJBOXR5NfWdXMeoLCWkWZiPHQpJz-xIuOB9zmKeQ/exec";
 let entries = [];
-let houses = JSON.parse(localStorage.getItem('greenhouse_houses') || '["البيت 1","البيت 2"]');
+let houses = JSON.parse(localStorage.getItem('greenhouse_houses') || '["البيت الأول","البيت الثاني"]');
 let barChartInstance = null, pieChartInstance = null;
+let listShown = 30;
+const LIST_PAGE = 30;
+const FETCH_LIMIT = 1000;
 const expenseCats = ['بذور وشتلات','أسمدة ومغذيات','مبيدات حشرية','مياه وكهرباء / طاقة','عمالة وأجور','صيانة وأغطية','مصاريف أخرى'];
 const revenueCats = ['مبيعات محاصيل','إيرادات أخرى'];
 
 function fmt(n){ return Math.round(n).toLocaleString('en-US'); }
 function usd(n,rate){ return (n/rate).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function logMessage(msg){ const b=document.getElementById('debugPanel'); if(!b) return; b.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`; b.scrollTop=b.scrollHeight; }
+
+// ---- lock screen ----
+function showLock(view){
+  document.getElementById('lockScreen').classList.remove('hidden');
+  document.getElementById('lockSetupView').classList.toggle('hidden', view!=='setup');
+  document.getElementById('lockEnterView').classList.toggle('hidden', view!=='enter');
+}
+function initLock(){
+  const pin = localStorage.getItem('gh_pin');
+  if(pin){ showLock('enter'); } else { showLock('setup'); }
+}
+function setupPin(){
+  const a = document.getElementById('newPin').value.trim();
+  const b = document.getElementById('confirmPin').value.trim();
+  if(a.length<4){ alertCustom('الرمز يجب أن يتكون من 4 أرقام على الأقل'); return; }
+  if(a!==b){ alertCustom('الرمزان غير متطابقين'); return; }
+  localStorage.setItem('gh_pin', a);
+  document.getElementById('lockScreen').classList.add('hidden');
+}
+function skipPin(){ document.getElementById('lockScreen').classList.add('hidden'); }
+function checkPin(){
+  const pin = localStorage.getItem('gh_pin');
+  const val = document.getElementById('enterPin').value.trim();
+  if(val===pin){ document.getElementById('lockScreen').classList.add('hidden'); document.getElementById('enterPin').value=''; document.getElementById('lockError').classList.add('hidden'); }
+  else {
+    document.getElementById('lockError').classList.remove('hidden');
+    const box = document.getElementById('lockEnterView'); box.classList.add('shake'); setTimeout(()=>box.classList.remove('shake'),300);
+  }
+}
+function forgotPin(){ alertCustom('يمكنك إلغاء الرمز من إعدادات المتصفح بمسح بيانات هذا الموقع، دون أن يؤثر ذلك على بيانات جدول Google Sheets'); }
+function lockNow(){ showLock(localStorage.getItem('gh_pin') ? 'enter' : 'setup'); }
+function changePin(){
+  const v = document.getElementById('settingsNewPin').value.trim();
+  if(v.length<4){ alertCustom('الرمز يجب أن يتكون من 4 أرقام على الأقل'); return; }
+  localStorage.setItem('gh_pin', v);
+  document.getElementById('settingsNewPin').value='';
+  alertCustom('تم تحديث رمز الدخول');
+}
+function disablePin(){
+  localStorage.removeItem('gh_pin');
+  alertCustom('تم إلغاء رمز الدخول');
+}
 
 // ---- theme ----
 function applyTheme(t){ document.documentElement.setAttribute('data-theme', t); localStorage.setItem('greenhouse_theme', t); }
@@ -239,7 +348,7 @@ function showTab(name){
   if(name==='houses') renderHouses();
 }
 
-// ---- add sheet ----
+// ---- add / edit sheet ----
 function openAddSheet(){
   document.getElementById('addSheet').classList.remove('hidden');
   requestAnimationFrame(()=>document.getElementById('sheetInner').classList.remove('translate-y-full'));
@@ -248,11 +357,39 @@ function closeAddSheet(){
   document.getElementById('sheetInner').classList.add('translate-y-full');
   setTimeout(()=>document.getElementById('addSheet').classList.add('hidden'),280);
 }
+function openNewEntrySheet(){
+  document.getElementById('entryForm').reset();
+  document.getElementById('entryId').value='';
+  document.getElementById('entryDate').valueAsDate = new Date();
+  setType('expense');
+  document.getElementById('sheetTitle').innerText = 'إضافة حركة جديدة';
+  document.getElementById('submitBtn').innerText = 'حفظ وتصدير للسحابة';
+  document.getElementById('deleteBtn').classList.add('hidden');
+  openAddSheet();
+}
+function openEditSheet(id){
+  const it = entries.find(e=>String(e.id)===String(id));
+  if(!it) return;
+  const isRev = it.type==='revenue'||it.type==='مبيعات (قبض)';
+  setType(isRev?'revenue':'expense');
+  document.getElementById('entryId').value = it.id || '';
+  document.getElementById('entryCategory').value = it.category;
+  document.getElementById('entryAmount').value = it.amount;
+  document.getElementById('entryDate').value = it.date;
+  document.getElementById('entryNote').value = (it.note && it.note!=='-') ? it.note : '';
+  document.getElementById('entryHouse').value = it.house || '';
+  document.getElementById('entryQuantity').value = it.quantity || '';
+  document.getElementById('entryUnitPrice').value = it.unitPrice || '';
+  document.getElementById('sheetTitle').innerText = 'تعديل الحركة';
+  document.getElementById('submitBtn').innerText = 'حفظ التعديلات';
+  document.getElementById('deleteBtn').classList.toggle('hidden', !it.id);
+  openAddSheet();
+}
 function setType(t){
   document.getElementById('entryType').value = t;
   const e=document.getElementById('typeExpBtn'), r=document.getElementById('typeRevBtn');
-  if(t==='expense'){ e.style.background='var(--soil)'; e.style.color='#fff'; r.style.background='var(--chip)'; r.style.color='var(--ink)'; }
-  else { r.style.background='var(--leaf)'; r.style.color='#fff'; e.style.background='var(--chip)'; e.style.color='var(--ink)'; }
+  if(t==='expense'){ e.style.background='var(--soil)'; e.style.color='#fff'; r.style.background='var(--chip)'; r.style.color='var(--ink)'; document.getElementById('yieldFields').classList.add('hidden'); }
+  else { r.style.background='var(--leaf)'; r.style.color='#fff'; e.style.background='var(--chip)'; e.style.color='var(--ink)'; document.getElementById('yieldFields').classList.remove('hidden'); }
   updateCategories();
 }
 function updateCategories(){
@@ -260,8 +397,14 @@ function updateCategories(){
   const cats = type==='expense' ? expenseCats : revenueCats;
   document.getElementById('entryCategory').innerHTML = cats.map(c=>`<option value="${c}">${c}</option>`).join('');
 }
+function recalcAmount(){
+  const q = parseFloat(document.getElementById('entryQuantity').value);
+  const u = parseFloat(document.getElementById('entryUnitPrice').value);
+  if(q>0 && u>0) document.getElementById('entryAmount').value = Math.round(q*u);
+}
 function fillHouseSelects(){
   document.getElementById('filterHouse').innerHTML = '<option value="">كل البيوت</option>' + houses.map(h=>`<option value="${h}">${h}</option>`).join('');
+  document.getElementById('entryHouse').innerHTML = '<option value="">بدون تحديد</option>' + houses.map(h=>`<option value="${h}">${h}</option>`).join('');
 }
 
 // ---- houses ----
@@ -278,34 +421,49 @@ function removeHouse(name){
   localStorage.setItem('greenhouse_houses', JSON.stringify(houses));
   fillHouseSelects(); renderHouses();
 }
+function entryHouseMatches(e,h){
+  if(e.house) return e.house===h;
+  return e.note && e.note.includes(h);
+}
 function renderHouses(){
   const rate = parseFloat(document.getElementById('exchangeRateInput').value)||15000;
   const box = document.getElementById('housesList');
   if(houses.length===0){ box.innerHTML = `<p class="text-[12px] text-center py-6" style="color:var(--muted)">لا توجد بيوت مضافة بعد</p>`; return; }
   box.innerHTML = houses.map(h=>{
-    let rev=0, exp=0;
-    entries.filter(e=>e.note && e.note.includes(h)).forEach(e=>{ const isRev = e.type==='revenue'||e.type==='مبيعات (قبض)'; const val=Number(e.amount)||0; if(isRev) rev+=val; else exp+=val; });
+    let rev=0, exp=0, qty=0;
+    entries.forEach(e=>{
+      if(!entryHouseMatches(e,h)) return;
+      const isRev = e.type==='revenue'||e.type==='مبيعات (قبض)';
+      const val = Number(e.amount)||0;
+      if(isRev){ rev+=val; if(e.quantity) qty+=Number(e.quantity)||0; } else exp+=val;
+    });
     const net = rev-exp;
-    return `<div class="rounded-2xl p-4 flex items-center justify-between" style="background:var(--surface);border:1px solid var(--line)">
-      <div>
+    const costPerKg = qty>0 ? (exp/qty) : null;
+    return `<div class="rounded-2xl p-4" style="background:var(--surface);border:1px solid var(--line)">
+      <div class="flex items-center justify-between">
         <p class="font-bold text-[13px]">${h}</p>
-        <p class="text-[11px] mt-0.5" style="color:var(--muted)">صافي: <b style="color:${net>=0?'var(--leaf)':'var(--soil)'}">${fmt(net)} ل.س</b> ($${usd(net,rate)})</p>
+        <button onclick="removeHouse('${h}')" class="w-8 h-8 flex items-center justify-center rounded-lg" style="background:var(--chip)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--soil)" stroke-width="2"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0 1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13"/></svg>
+        </button>
       </div>
-      <button onclick="removeHouse('${h}')" class="w-8 h-8 flex items-center justify-center rounded-lg" style="background:var(--chip)">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--soil)" stroke-width="2"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0 1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13"/></svg>
-      </button>
+      <p class="text-[11px] mt-1" style="color:var(--muted)">صافي: <b style="color:${net>=0?'var(--leaf)':'var(--soil)'}">${fmt(net)} ل.س</b> ($${usd(net,rate)})</p>
+      ${costPerKg!==null ? `<p class="text-[11px] mt-0.5" style="color:var(--muted)">الكمية المُنتَجة: ${fmt(qty)} كغ · تكلفة الكيلو التقريبية: ${fmt(costPerKg)} ل.س</p>` : ''}
     </div>`;
   }).join('');
 }
 
 // ---- render everything ----
+function onFiltersChanged(){ listShown = LIST_PAGE; renderAll(); }
+function loadMore(){ listShown += LIST_PAGE; renderAll(); }
+
 function renderAll(){
   const rate = parseFloat(document.getElementById('exchangeRateInput').value)||15000;
-  let totalRev=0, totalExp=0; const catTotals={}; expenseCats.forEach(c=>catTotals[c]=0);
+  let totalRev=0, totalExp=0, totalQty=0, totalQtyRevenue=0; const catTotals={}; expenseCats.forEach(c=>catTotals[c]=0);
   entries.forEach(it=>{
     const isRev = it.type==='revenue'||it.type==='مبيعات (قبض)';
     const val = Number(it.amount)||0;
-    if(isRev) totalRev+=val; else { totalExp+=val; catTotals[it.category]=(catTotals[it.category]||0)+val; }
+    if(isRev){ totalRev+=val; if(it.quantity){ totalQty+=Number(it.quantity)||0; totalQtyRevenue+=val; } }
+    else { totalExp+=val; catTotals[it.category]=(catTotals[it.category]||0)+val; }
   });
   const net = totalRev-totalExp;
   document.getElementById('totalRevenue').innerText = fmt(totalRev)+' ل.س';
@@ -315,6 +473,14 @@ function renderAll(){
   document.getElementById('netProfit').innerText = fmt(net)+' ل.س';
   document.getElementById('netProfitUSD').innerText = '$'+usd(net,rate);
 
+  const yieldBox = document.getElementById('yieldStatsBox');
+  if(totalQty>0){
+    yieldBox.innerHTML = `<div class="rounded-2xl p-4 flex justify-between" style="background:var(--chip);border:1px solid var(--line)">
+      <div><p class="text-[11px] font-semibold" style="color:var(--muted)">إجمالي الكمية المُباعة</p><p class="font-bold text-[15px] mt-0.5">${fmt(totalQty)} كغ</p></div>
+      <div class="text-left"><p class="text-[11px] font-semibold" style="color:var(--muted)">متوسط سعر الكيلو</p><p class="font-bold text-[15px] mt-0.5">${fmt(totalQtyRevenue/totalQty)} ل.س</p></div>
+    </div>`;
+  } else { yieldBox.innerHTML=''; }
+
   const search = (document.getElementById('searchBox').value||'').trim().toLowerCase();
   const fType = document.getElementById('filterType').value;
   const fHouse = document.getElementById('filterHouse').value;
@@ -322,24 +488,26 @@ function renderAll(){
     const isRev = it.type==='revenue'||it.type==='مبيعات (قبض)';
     if(fType==='expense' && isRev) return false;
     if(fType==='revenue' && !isRev) return false;
-    if(fHouse && !(it.note && it.note.includes(fHouse))) return false;
+    if(fHouse && !entryHouseMatches(it,fHouse)) return false;
     if(search && !((it.category||'').toLowerCase().includes(search) || (it.note||'').toLowerCase().includes(search))) return false;
     return true;
   });
   document.getElementById('entryCount').innerText = filtered.length + ' حركة من أصل ' + entries.length;
   const list = document.getElementById('entriesList');
-  if(filtered.length===0){
+  const visible = filtered.slice(0, listShown);
+  if(visible.length===0){
     list.innerHTML = `<p class="text-[12px] text-center py-8" style="color:var(--muted)">لا توجد حركات مطابقة</p>`;
   } else {
-    list.innerHTML = filtered.map(it=>{
+    list.innerHTML = visible.map(it=>{
       const isRev = it.type==='revenue'||it.type==='مبيعات (قبض)';
       const val = Number(it.amount)||0;
-      return `<div class="rounded-2xl p-3.5 flex items-center justify-between" style="background:var(--surface);border:1px solid var(--line)">
+      const clickable = it.id ? `onclick="openEditSheet('${it.id}')"` : '';
+      return `<div ${clickable} class="rounded-2xl p-3.5 flex items-center justify-between ${it.id?'cursor-pointer active:opacity-70':''}" style="background:var(--surface);border:1px solid var(--line)">
         <div class="flex items-center gap-3">
           <div class="w-2 h-9 rounded-full" style="background:${isRev?'var(--leaf)':'var(--soil)'}"></div>
           <div>
             <p class="font-bold text-[13px]">${it.category}</p>
-            <p class="text-[11px]" style="color:var(--muted)">${it.date||''} · ${it.note||'-'}</p>
+            <p class="text-[11px]" style="color:var(--muted)">${it.date||''}${it.house?' · '+it.house:''}${it.note && it.note!=='-' ? ' · '+it.note : ''}</p>
           </div>
         </div>
         <div class="text-left">
@@ -349,6 +517,8 @@ function renderAll(){
       </div>`;
     }).join('');
   }
+  document.getElementById('loadMoreBtn').classList.toggle('hidden', filtered.length<=listShown);
+
   updateBarChart(totalRev, totalExp);
   updatePieChart(catTotals);
   if(document.getElementById('tab-houses').classList.contains('active')) renderHouses();
@@ -375,7 +545,10 @@ function toggleDebugPanel(){
   p.classList.toggle('hidden'); t.innerText = p.classList.contains('hidden') ? 'إظهار' : 'إخفاء';
 }
 
-// ---- backend sync (unchanged JSONP contract) ----
+// ---- exchange rate persistence ----
+function saveRate(){ localStorage.setItem('greenhouse_rate', document.getElementById('exchangeRateInput').value); }
+
+// ---- backend sync ----
 function loadDataFromSheet(){
   logMessage('جلب البيانات من Google Sheets…');
   const old = document.getElementById('jsonpScript'); if(old) old.remove();
@@ -393,7 +566,7 @@ function loadDataFromSheet(){
   };
   const s = document.createElement('script');
   s.id='jsonpScript';
-  s.src = `${WEB_APP_URL}?callback=handleSheetData&t=${Date.now()}`;
+  s.src = `${WEB_APP_URL}?callback=handleSheetData&limit=${FETCH_LIMIT}&t=${Date.now()}`;
   s.onerror = function(){ document.getElementById('syncStatus').innerText='تعذّر الاتصال بالسحابة'; logMessage('فشل الجلب (تأكد من الرابط وصلاحية Anyone).'); };
   document.body.appendChild(s);
 }
@@ -405,48 +578,78 @@ function saveWebAppUrl(){
 }
 function addEntry(ev){
   ev.preventDefault();
+  const id = document.getElementById('entryId').value;
+  const isEdit = !!id;
   const btn = document.getElementById('submitBtn');
-  btn.disabled = true; btn.innerText = 'جارٍ الحفظ والتصدير…';
+  btn.disabled = true; btn.innerText = isEdit ? 'جارٍ حفظ التعديلات…' : 'جارٍ الحفظ والتصدير…';
   const entry = {
     date: document.getElementById('entryDate').value,
     type: document.getElementById('entryType').value,
     category: document.getElementById('entryCategory').value,
     amount: document.getElementById('entryAmount').value,
-    note: document.getElementById('entryNote').value || '-'
+    note: document.getElementById('entryNote').value || '-',
+    house: document.getElementById('entryHouse').value || '',
+    quantity: document.getElementById('entryQuantity').value || '',
+    unitPrice: document.getElementById('entryUnitPrice').value || ''
   };
-  entries.push(entry);
+  if(isEdit){
+    const idx = entries.findIndex(e=>String(e.id)===String(id));
+    if(idx>-1) entries[idx] = Object.assign({}, entries[idx], entry);
+  } else {
+    entries.push(entry);
+  }
   localStorage.setItem('greenhouse_entries_sync', JSON.stringify(entries));
   renderAll();
-  logMessage('حفظ محلي، جارٍ التصدير للسحابة…');
-  const qp = new URLSearchParams({ action:'add', ...entry, callback:'handleExportResponse', t:Date.now() });
-  window.handleExportResponse = function(res){ logMessage('استجابة التصدير: '+JSON.stringify(res)); };
+  logMessage(isEdit ? 'جارٍ تحديث الحركة في السحابة…' : 'حفظ محلي، جارٍ التصدير للسحابة…');
+  const qp = new URLSearchParams(Object.assign({ action: isEdit?'edit':'add' }, entry, { id: id||'', callback:'handleExportResponse', t:Date.now() }));
+  window.handleExportResponse = function(res){ logMessage('استجابة السحابة: '+JSON.stringify(res)); };
   const old = document.getElementById('exportScript'); if(old) old.remove();
   const s = document.createElement('script');
   s.id='exportScript'; s.src = `${WEB_APP_URL}?${qp.toString()}`;
   s.onload = function(){
-    alertCustom('تم تصدير الحركة إلى Google Sheets بنجاح');
-    btn.disabled=false; btn.innerText='حفظ وتصدير للسحابة';
-    document.getElementById('entryForm').reset();
-    document.getElementById('entryDate').valueAsDate = new Date();
-    setType('expense'); closeAddSheet();
+    alertCustom(isEdit ? 'تم حفظ التعديلات بنجاح' : 'تم تصدير الحركة إلى Google Sheets بنجاح');
+    btn.disabled=false;
+    closeAddSheet();
     setTimeout(loadDataFromSheet, 1000);
   };
   s.onerror = function(){
-    alertCustom('تم الحفظ محلياً (تعذّر الوصول للسحابة الآن)');
-    btn.disabled=false; btn.innerText='حفظ وتصدير للسحابة';
-    logMessage('تعذّر التصدير، البيانات محفوظة محلياً.');
+    alertCustom('تعذّر الوصول إلى السحابة الآن، تم الحفظ محلياً فقط');
+    btn.disabled=false;
     closeAddSheet();
   };
+  document.body.appendChild(s);
+}
+function deleteEntry(){
+  const id = document.getElementById('entryId').value;
+  if(!id){ alertCustom('هذه الحركة قديمة ولا تملك معرّفاً بعد؛ حدّث كود Google Apps Script أولاً'); return; }
+  if(!confirm('هل تريد حذف هذه الحركة نهائياً؟')) return;
+  const btn = document.getElementById('deleteBtn');
+  btn.disabled = true; btn.innerText = 'جارٍ الحذف…';
+  const qp = new URLSearchParams({ action:'delete', id, callback:'handleDeleteResponse', t:Date.now() });
+  window.handleDeleteResponse = function(res){ logMessage('استجابة الحذف: '+JSON.stringify(res)); };
+  const old = document.getElementById('deleteScript'); if(old) old.remove();
+  const s = document.createElement('script');
+  s.id='deleteScript'; s.src = `${WEB_APP_URL}?${qp.toString()}`;
+  s.onload = function(){
+    entries = entries.filter(e=>String(e.id)!==String(id));
+    localStorage.setItem('greenhouse_entries_sync', JSON.stringify(entries));
+    renderAll();
+    alertCustom('تم حذف الحركة');
+    btn.disabled=false; btn.innerText='حذف الحركة نهائياً';
+    closeAddSheet();
+    setTimeout(loadDataFromSheet, 1000);
+  };
+  s.onerror = function(){ alertCustom('تعذّر حذف الحركة، تحقق من الاتصال'); btn.disabled=false; btn.innerText='حذف الحركة نهائياً'; };
   document.body.appendChild(s);
 }
 function exportToCSV(){
   if(entries.length===0) return alertCustom('لا توجد بيانات لتصديرها');
   const rate = parseFloat(document.getElementById('exchangeRateInput').value)||15000;
-  let csv = "\uFEFFالتاريخ,النوع,التصنيف,المبلغ (ل.س),المبلغ (دولار),البيت/ملاحظة\n";
+  let csv = "\uFEFFالتاريخ,النوع,التصنيف,المبلغ (ل.س),المبلغ (دولار),البيت,الكمية (كغ),ملاحظة\n";
   entries.forEach(it=>{
     const isRev = it.type==='revenue'||it.type==='مبيعات (قبض)';
     const val = Number(it.amount)||0;
-    csv += `"${it.date}","${isRev?'مبيعات':'مصروف'}","${it.category}","${val}","${(val/rate).toFixed(2)}","${it.note||''}"\n`;
+    csv += `"${it.date}","${isRev?'مبيعات':'مصروف'}","${it.category}","${val}","${(val/rate).toFixed(2)}","${it.house||''}","${it.quantity||''}","${it.note||''}"\n`;
   });
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
   const url = URL.createObjectURL(blob);
@@ -456,17 +659,19 @@ function exportToCSV(){
 }
 function alertCustom(msg){
   const box = document.createElement('div');
-  box.className = 'fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-xl shadow-lg z-50 text-[12px] font-semibold';
+  box.className = 'fixed bottom-24 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-xl shadow-lg z-50 text-[12px] font-semibold max-w-[85vw] text-center';
   box.style.background = 'var(--brand)'; box.style.color = '#fff';
   box.innerText = msg;
   document.body.appendChild(box);
-  setTimeout(()=>box.remove(), 3200);
+  setTimeout(()=>box.remove(), 3600);
 }
 
 // ---- init ----
 window.onload = function(){
+  initLock();
   document.getElementById('entryDate').valueAsDate = new Date();
   document.getElementById('webAppUrlInput').value = WEB_APP_URL;
+  document.getElementById('exchangeRateInput').value = localStorage.getItem('greenhouse_rate') || '15000';
   fillHouseSelects();
   updateCategories();
   try{ entries = JSON.parse(localStorage.getItem('greenhouse_entries_sync')) || []; }catch(e){ entries=[]; }
